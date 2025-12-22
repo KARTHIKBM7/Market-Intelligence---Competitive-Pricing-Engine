@@ -1,19 +1,20 @@
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import sqlite3
+from sqlalchemy import create_engine
 import datetime
 import random
+import config  # <--- Importing your secret file
 
 # --- CONFIGURATION ---
-DATABASE_NAME = "market_analyzer.db"
-URL = "http://books.toscrape.com/"
+# We grab the URL from your secret config file
+DATABASE_URL = config.DB_URL 
 
 def extract_data_site_a():
-    """Scrapes real data from BooksToScrape (Site A)."""
-    print(f"Scraping Site A ({URL})...")
+    """Scrapes real data from BooksToScrape."""
+    print("Scraping Site A...")
     headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(URL, headers=headers)
+    response = requests.get("http://books.toscrape.com/", headers=headers)
     
     if response.status_code != 200:
         return pd.DataFrame()
@@ -25,72 +26,54 @@ def extract_data_site_a():
     for book in books:
         title = book.h3.a["title"]
         price = float(book.find("p", class_="price_color").text.replace("£", ""))
-        stock = book.find("p", class_="instock availability").text.strip()
         collected_at = datetime.datetime.now()
         
         data.append({
             "product_name": title,
             "price": price,
-            "availability": stock,
-            "source": "BooksToScrape",  # <--- NEW COLUMN
+            "source": "BooksToScrape",
             "scraped_at": collected_at
         })
     
     return pd.DataFrame(data)
 
 def generate_competitor_data(df_site_a):
-    """Generates simulated data for 'BookWorld' (Site B) for comparison."""
-    print("Simulating Competitor (Site B) data...")
-    
-    # We copy the Site A data but change the source and price
+    """Generates simulated Competitor data."""
+    print("Simulating Competitor (Site B)...")
     df_site_b = df_site_a.copy()
-    df_site_b["source"] = "BookWorld" # <--- DIFFERENT SOURCE
-    
-    # Randomly adjust price by -10% to +10% to simulate competition
-    # Logic: New Price = Old Price * Random Factor (0.90 to 1.10)
+    df_site_b["source"] = "BookWorld"
     df_site_b["price"] = df_site_b["price"].apply(lambda x: round(x * random.uniform(0.9, 1.1), 2))
-    
     return df_site_b
 
-def load_data(df):
-    """Takes a DataFrame and saves it to SQLite Database."""
+def load_data_to_cloud(df):
+    """Uploads DataFrame to Cloud Database (PostgreSQL)."""
     if df.empty:
+        print("No data to load.")
         return
 
-    conn = sqlite3.connect(DATABASE_NAME)
-    cursor = conn.cursor()
-    
-    # Updated Schema with 'source' column
-    create_table_query = """
-    CREATE TABLE IF NOT EXISTS book_prices (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_name TEXT,
-        price REAL,
-        availability TEXT,
-        source TEXT,
-        scraped_at TIMESTAMP
-    );
-    """
-    cursor.execute(create_table_query)
-    
-    df.to_sql("book_prices", conn, if_exists="append", index=False)
-    conn.close()
-    print(f"Loaded {len(df)} rows into Database.")
+    try:
+        print(f"Connecting to Cloud Database...")
+        # create_engine handles the connection to Postgres
+        engine = create_engine(DATABASE_URL)
+        
+        # 'if_exists="append"' adds new rows without deleting old ones
+        df.to_sql("book_prices", engine, if_exists="append", index=False)
+        print(f"✅ SUCCESS: Loaded {len(df)} rows to the Cloud!")
+        
+    except Exception as e:
+        print(f"❌ ERROR: Could not upload to cloud. Details: {e}")
 
 if __name__ == "__main__":
-    print("--- PIPELINE STARTED ---")
+    print("--- CLOUD PIPELINE STARTED ---")
     
-    # 1. Get Data from Site A
+    # 1. Scrape & Generate
     df_a = extract_data_site_a()
     
-    # 2. Generate Data for Site B (Competitor)
     if not df_a.empty:
         df_b = generate_competitor_data(df_a)
-        
-        # 3. Combine both datasets
         full_data = pd.concat([df_a, df_b])
         
-        # 4. Load everything
-        load_data(full_data)
+        # 2. Upload to Cloud
+        load_data_to_cloud(full_data)
         
     print("--- PIPELINE FINISHED ---")
