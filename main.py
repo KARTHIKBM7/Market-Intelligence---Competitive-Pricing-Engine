@@ -4,12 +4,18 @@ import pandas as pd
 from sqlalchemy import create_engine
 import datetime
 import random
-import config  # <--- Importing your secret file
+import os  # <--- NEW IMPORT
 
 # --- CONFIGURATION ---
-# We grab the URL from your secret config file
-DATABASE_URL = config.DB_URL 
+try:
+    # Try to import from the file (Laptop Mode)
+    import config
+    DATABASE_URL = config.DB_URL
+except ImportError:
+    # If file is missing, get from Environment (Cloud Mode)
+    DATABASE_URL = os.getenv("DB_URL")
 
+# (The rest of your code stays exactly the same...)
 def extract_data_site_a():
     """Scrapes real data from BooksToScrape."""
     print("Scraping Site A...")
