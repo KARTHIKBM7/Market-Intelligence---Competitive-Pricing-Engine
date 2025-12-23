@@ -1,4 +1,5 @@
 import requests
+from notifications import send_email_alert
 from bs4 import BeautifulSoup
 import pandas as pd
 from sqlalchemy import create_engine
@@ -32,6 +33,12 @@ def extract_data_site_a():
     for book in books:
         title = book.h3.a["title"]
         price = float(book.find("p", class_="price_color").text.replace("£", ""))
+        # --- NEW: WATCHDOG LOGIC ---
+        # Alert me if a book is cheaper than £15
+        if price < 35.0:
+            print(f"🔥 Found a deal: {title} (£{price})")
+            send_email_alert(title, price, "http://books.toscrape.com") 
+        # ---------------------------
         collected_at = datetime.datetime.now()
         
         data.append({
