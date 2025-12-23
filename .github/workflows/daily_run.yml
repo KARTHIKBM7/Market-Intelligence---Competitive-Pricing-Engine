@@ -1,39 +1,32 @@
 name: Daily Market Scraper
 
-# Trigger: Run every day at 9:00 AM UTC (approx 2:30 PM India time)
-# OR allow us to click a button to run it manually
 on:
   schedule:
-    - cron: '0 9 * * *'
-  workflow_dispatch:
+    - cron: '0 9 * * *'  # Runs every day at 9:00 AM UTC
+  workflow_dispatch:      # Allows manual run button
 
 jobs:
-  scrape-and-load:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Get the code from the repo
-    - name: Checkout content
+    - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2. Install Python
-    - name: Setup Python
+    - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
-    # 3. Install libraries (pandas, sqlalchemy, psycopg2, etc.)
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    # 4. Run the scraper
-    # We pass the secret DB_URL so the script can connect to Supabase
-    - name: Run Scraper
+    - name: Run scraper
       env:
         DB_URL: ${{ secrets.DB_URL }}
-        EMAIL_SENDER: ${{ karthikbm491.gmail.com }}
+        EMAIL_SENDER: ${{ karthikbm491@gmail.com }}
         EMAIL_PASSWORD: ${{ tmij igpu cwrh ftmn }}
         EMAIL_RECEIVER: ${{ karthikbm491@gmail.com }}
       run: python main.py
