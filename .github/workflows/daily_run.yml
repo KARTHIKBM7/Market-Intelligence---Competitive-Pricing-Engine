@@ -2,8 +2,8 @@ name: Daily Market Scraper
 
 on:
   schedule:
-    - cron: '0 9 * * *'  # Runs every day at 9:00 AM UTC
-  workflow_dispatch:      # Allows manual run button
+    - cron: '0 9 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -26,7 +26,7 @@ jobs:
     - name: Run scraper
       env:
         DB_URL: ${{ secrets.DB_URL }}
-        EMAIL_SENDER: ${{ karthikbm491@gmail.com }}
-        EMAIL_PASSWORD: ${{ tmij igpu cwrh ftmn }}
-        EMAIL_RECEIVER: ${{ karthikbm491@gmail.com }}
+        EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
       run: python main.py
