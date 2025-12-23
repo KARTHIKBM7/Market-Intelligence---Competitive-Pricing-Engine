@@ -33,4 +33,7 @@ jobs:
     - name: Run Scraper
       env:
         DB_URL: ${{ secrets.DB_URL }}
+        EMAIL_SENDER: ${{ karthikbm491.gmail.com }}
+        EMAIL_PASSWORD: ${{ tmij igpu cwrh ftmn }}
+        EMAIL_RECEIVER: ${{ karthikbm491@gmail.com }}
       run: python main.py
