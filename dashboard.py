@@ -3,62 +3,79 @@ import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine
 
-# 1. PAGE SETUP
-st.set_page_config(page_title="Market Intelligence Dashboard", layout="wide")
+# --- PAGE SETUP ---
+st.set_page_config(page_title="Market Intelligence", layout="wide")
+st.title("📊 Live Market Intelligence Dashboard")
 
-# 2. SECURE DATABASE CONNECTION
-try:
-    import config
-    db_url = config.DB_URL
-except ImportError:
-    if "DB_URL" in st.secrets:
-        db_url = st.secrets["DB_URL"]
-    else:
-        st.error("Database URL not found. Please check secrets.")
-        st.stop()
-
-# 3. DATA LOADING
-@st.cache_data(ttl=60)
-def load_data():
-    engine = create_engine(db_url)
-    df = pd.read_sql("SELECT * FROM books;", engine)
-    df['price'] = pd.to_numeric(df['price'])
-    df['date'] = pd.to_datetime(df['created_at'])
-    return df
-
-# 4. DASHBOARD LAYOUT
-st.title("📊 Market Intelligence Dashboard")
-
-try:
-    df = load_data()
+# --- DATABASE CONNECTION ---
+def get_db_connection():
+    """
+    1. Tries to load from local config.py (Laptop)
+    2. If that fails, loads from Streamlit Secrets (Cloud)
+    3. Fixes 'postgres://' typo automatically
+    """
+    db_url = ""
     
-    # METRICS
+    try:
+        # Try importing local config file
+        import config
+        db_url = config.DB_URL
+    except ImportError:
+        # If config.py doesn't exist, look in Streamlit Secrets
+        db_url = st.secrets["DB_URL"]
+
+    # FIX: SQLAlchemy requires 'postgresql://', but some hosts give 'postgres://'
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+        
+    return db_url
+
+# --- LOAD DATA ---
+try:
+    db_url = get_db_connection()
+    engine = create_engine(db_url)
+    
+    # Read the live table from the Cloud
+    df = pd.read_sql("SELECT * FROM book_prices", engine)
+
+    # Convert to datetime and adjust for India Time (UTC + 5:30)
+    # We check if the column exists first to be safe
+    time_col = 'created_at' if 'created_at' in df.columns else 'scraped_at'
+    
+    if time_col in df.columns:
+        df[time_col] = pd.to_datetime(df[time_col])
+        df[time_col] = df[time_col] + pd.Timedelta(hours=5, minutes=30)
+        latest_scan = df[time_col].max()
+    else:
+        latest_scan = "Unknown"
+
+    # --- METRICS ---
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total Products", len(df))
-    col1.metric("Avg Price", f"£{df['price'].mean():.2f}")
-    col1.metric("Lowest Price", f"£{df['price'].min():.2f}")
+    
+    avg_price = df['price'].mean()
+    total_products = df['title'].nunique()
 
-    st.markdown("---")
+    col1.metric("Avg Market Price", f"£{avg_price:.2f}")
+    col2.metric("Products Tracked", total_products)
+    col3.metric("Last Update (IST)", str(latest_scan)[:19])
 
-    # CHARTS
-    col_left, col_right = st.columns(2)
+    # --- SIDEBAR DOWNLOAD ---
+    st.sidebar.header("Options")
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        label="📥 Download Data as CSV",
+        data=csv,
+        file_name='market_intelligence_report.csv',
+        mime='text/csv',
+    )
 
-    with col_left:
-        st.subheader("Price Distribution")
-        fig_hist = px.histogram(df, x="price", nbins=20)
-        st.plotly_chart(fig_hist, use_container_width=True)
+    # --- VISUALS ---
+    st.subheader("Price Distribution")
+    fig = px.histogram(df, x="price", title="Competitor Price Spread", hover_data=["title"])
+    st.plotly_chart(fig, use_container_width=True)
 
-    with col_right:
-        st.subheader("Top 5 Cheapest Books")
-        cheapest_books = df.nsmallest(5, 'price')
-        fig_bar = px.bar(cheapest_books, x='price', y='title', orientation='h')
-        fig_bar.update_layout(yaxis=dict(autorange="reversed"))
-        st.plotly_chart(fig_bar, use_container_width=True)
-
-    # REFRESH BUTTON
-    if st.button('🔄 Refresh Data'):
-        st.cache_data.clear()
-        st.rerun()
+    st.subheader("Raw Data Feed")
+    st.dataframe(df.sort_values(by="price", ascending=False))
 
 except Exception as e:
-    st.error(f"Error loading data: {e}")
+    st.error(f"Something went wrong: {e}")
