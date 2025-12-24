@@ -2,64 +2,72 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine
-import config  # Import config to get DB_URL
 
-# --- PAGE SETUP ---
-st.set_page_config(page_title="Market Intelligence", layout="wide")
-st.title("📊 Live Market Intelligence Dashboard")
+# --- 1. PAGE SETUP (Must be the first Streamlit command) ---
+st.set_page_config(page_title="Market Intelligence Dashboard", layout="wide")
 
-# --- DATABASE CONNECTION ---
-def get_db_connection():
-    """
-    Connects to the database using the URL from config.py
-    """
-    try:
-        return config.DB_URL
-    except AttributeError:
-        # Fallback if config isn't found (for Streamlit Cloud later)
-        return st.secrets["DB_URL"]
-
-# --- LOAD DATA ---
+# --- 2. SECURE DATABASE CONNECTION ---
+# This block fixes the "No module named config" error
 try:
-    db_url = get_db_connection()
-    engine = create_engine(db_url)
-    
-    # Read the live table from the Cloud
-    df = pd.read_sql("SELECT * FROM book_prices", engine)
-    # Convert to datetime and adjust for India Time (UTC + 5:30)
-    df['created_at'] = pd.to_datetime(df['created_at'])
-    df['created_at'] = df['created_at'] + pd.Timedelta(hours=5, minutes=30)
-    
-    # --- METRICS ---
-    col1, col2, col3 = st.columns(3)
-    
-    # 1. Calculate Average Price
-    avg_price = df['price'].mean()
-    
-    # 2. Count Unique Books (Using 'title', not 'product_name')
-    total_products = df['title'].nunique()
-    
-    # 3. Find Latest Scan Time (Using 'created_at', or fallback to 'scraped_at' if exists)
-    if 'created_at' in df.columns:
-        latest_scan = df['created_at'].max()
-    elif 'scraped_at' in df.columns:
-        latest_scan = df['scraped_at'].max()
+    # Option A: Local Development (Laptop)
+    import config
+    db_url = config.DB_URL
+except ImportError:
+    # Option B: Cloud Deployment (Streamlit Cloud)
+    if "DB_URL" in st.secrets:
+        db_url = st.secrets["DB_URL"]
     else:
-        latest_scan = "Unknown"
+        st.error("🚨 Critical Error: Database URL not found!")
+        st.info("If you are on Streamlit Cloud, go to Settings > Secrets and add your DB_URL.")
+        st.stop()
 
-    col1.metric("Avg Market Price", f"£{avg_price:.2f}")
-    col2.metric("Products Tracked", total_products)
-    col3.metric("Last Update", str(latest_scan)[:16])
+# --- 3. DATA LOADING FUNCTION ---
+# We cache this so the app doesn't reload the database every time you click a button
+@st.cache_data(ttl=60)  # Refresh cache every 60 seconds
+def load_data():
+    engine = create_engine(db_url)
+    query = "SELECT * FROM books;"  # Fetch all data
+    df = pd.read_sql(query, engine)
+    
+    # Clean up data types if needed
+    df['price'] = pd.to_numeric(df['price'])
+    df['date'] = pd.to_datetime(df['created_at'])
+    return df
 
-    # --- VISUALS ---
-    st.subheader("Price Distribution")
-    # Using 'title' for hover data
-    fig = px.histogram(df, x="price", title="Competitor Price Spread", hover_data=["title"])
-    st.plotly_chart(fig, use_container_width=True)
+# --- 4. DASHBOARD LAYOUT ---
+st.title("📊 Market Intelligence & Pricing Engine")
+st.markdown("Real-time competitor tracking and price analysis.")
 
-    st.subheader("Raw Data Feed")
-    # Sorting by price for better visibility (high to low)
-    st.dataframe(df.sort_values(by="price", ascending=False))
+# Load the data
+try:
+    df = load_data()
+    
+    # -- KPI METRICS ROW --
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Products Tracked", len(df))
+    with col2:
+        avg_price = df['price'].mean()
+        st.metric("Average Market Price", f"£{avg_price:.2f}")
+    with col3:
+        lowest_price = df['price'].min()
+        st.metric("Lowest Price Found", f"£{lowest_price:.2f}")
 
-except Exception as e:
-    st.error(f"Database Connection Error: {e}")
+    st.markdown("---")
+
+    # -- VISUALIZATION ROW --
+    col_left, col_right = st.columns(2)
+
+    with col_left:
+        st.subheader("💰 Price Distribution")
+        # Histogram showing how many books are at each price point
+        fig_hist = px.histogram(df, x="price", nbins=20, title="Price Ranges of Products")
+        st.plotly_chart(fig_hist, use_container_width=True)
+
+    with col_right:
+        st.subheader("🏆 Top 5 Cheapest Books")
+        # Bar chart of the 5 lowest priced items
+        cheapest_books = df.nsmallest(5, 'price')
+        fig_bar = px.bar(cheapest_books, x='price', y='title', orientation='h', 
+                         title="Lowest Priced Assets", color='price')
+        # Invert y-axis so the #
