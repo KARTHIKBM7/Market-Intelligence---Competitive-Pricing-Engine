@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine
+import config  # Import config to get DB_URL
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Market Intelligence", layout="wide")
@@ -10,15 +11,12 @@ st.title("📊 Live Market Intelligence Dashboard")
 # --- DATABASE CONNECTION ---
 def get_db_connection():
     """
-    Intelligent Connection:
-    1. Checks if we are on your laptop (uses config.py)
-    2. Checks if we are on the Cloud (uses st.secrets)
+    Connects to the database using the URL from config.py
     """
     try:
-        import config
         return config.DB_URL
-    except ImportError:
-        # If config.py is missing, we are likely on Streamlit Cloud
+    except AttributeError:
+        # Fallback if config isn't found (for Streamlit Cloud later)
         return st.secrets["DB_URL"]
 
 # --- LOAD DATA ---
@@ -28,12 +26,26 @@ try:
     
     # Read the live table from the Cloud
     df = pd.read_sql("SELECT * FROM book_prices", engine)
+    # Convert to datetime and adjust for India Time (UTC + 5:30)
+    df['created_at'] = pd.to_datetime(df['created_at'])
+    df['created_at'] = df['created_at'] + pd.Timedelta(hours=5, minutes=30)
     
     # --- METRICS ---
     col1, col2, col3 = st.columns(3)
+    
+    # 1. Calculate Average Price
     avg_price = df['price'].mean()
-    total_products = df['product_name'].nunique()
-    latest_scan = df['scraped_at'].max()
+    
+    # 2. Count Unique Books (Using 'title', not 'product_name')
+    total_products = df['title'].nunique()
+    
+    # 3. Find Latest Scan Time (Using 'created_at', or fallback to 'scraped_at' if exists)
+    if 'created_at' in df.columns:
+        latest_scan = df['created_at'].max()
+    elif 'scraped_at' in df.columns:
+        latest_scan = df['scraped_at'].max()
+    else:
+        latest_scan = "Unknown"
 
     col1.metric("Avg Market Price", f"£{avg_price:.2f}")
     col2.metric("Products Tracked", total_products)
@@ -41,11 +53,13 @@ try:
 
     # --- VISUALS ---
     st.subheader("Price Distribution")
-    fig = px.histogram(df, x="price", color="source", nbins=20, title="Competitor Price Spread")
+    # Using 'title' for hover data
+    fig = px.histogram(df, x="price", title="Competitor Price Spread", hover_data=["title"])
     st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Raw Data Feed")
-    st.dataframe(df.sort_values(by="scraped_at", ascending=False))
+    # Sorting by price for better visibility (high to low)
+    st.dataframe(df.sort_values(by="price", ascending=False))
 
 except Exception as e:
     st.error(f"Database Connection Error: {e}")
