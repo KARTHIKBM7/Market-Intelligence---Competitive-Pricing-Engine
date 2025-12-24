@@ -1,44 +1,51 @@
-from fastapi import FastAPI, HTTPException
-from sqlalchemy import create_engine, text
-import pandas as pd
-import config  # Importing your existing database passwords
+import os
 from typing import Optional
+from fastapi import FastAPI
+from sqlalchemy import create_engine
+import pandas as pd
 
-# 1. Create the App (The "Restaurant")
+# 1. Create the App
 app = FastAPI(
     title="Market Intelligence API",
     description="A live data feed for competitor book prices.",
     version="1.0"
 )
 
-# 2. Database Connection (The "Kitchen")
+# 2. Database Connection (Smart Version)
 def get_db_connection():
-    return create_engine(config.DB_URL)
+    # A. First, try to get the URL from Render's Environment Variables
+    db_url = os.getenv("DB_URL")
+    
+    # B. If that fails (meaning we are on Localhost), try importing config.py
+    if not db_url:
+        try:
+            import config
+            db_url = config.DB_URL
+        except ImportError:
+            # If neither works, we have a problem
+            raise Exception("Database URL not found! Set DB_URL var or create config.py.")
 
-# --- ENDPOINTS (The "Menu Items") ---
+    # C. Fix potential "postgres://" typo (common in cloud apps)
+    if db_url and db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+    return create_engine(db_url)
+
+# --- ENDPOINTS ---
 
 @app.get("/")
 def home():
-    """The Welcome Page"""
-    return {"message": "Welcome to the Market Intelligence API. Go to /prices to see data."}
+    return {"message": "Welcome to the Market Intelligence API. Go to /docs to test it."}
 
 @app.get("/prices")
 def get_prices(max_price: Optional[float] = None):
-    """
-    Fetch book prices. 
-    Optional: Add ?max_price=20 to filter for cheap books.
-    """
     try:
         engine = get_db_connection()
         df = pd.read_sql("SELECT * FROM book_prices", engine)
         
-        # --- THE SMART FILTER LOGIC ---
         if max_price is not None:
-            # Keep only rows where price is LESS than the user's limit
             df = df[df['price'] <= max_price]
-        # ------------------------------
         
-        # Convert to dictionary
         data = df.to_dict(orient="records")
         return {"count": len(data), "limit_applied": max_price, "data": data}
     except Exception as e:
@@ -46,19 +53,14 @@ def get_prices(max_price: Optional[float] = None):
 
 @app.get("/stats")
 def get_stats():
-    """Get quick Key Performance Indicators (KPIs)"""
     try:
         engine = get_db_connection()
         df = pd.read_sql("SELECT price FROM book_prices", engine)
         
-        avg_price = df['price'].mean()
-        lowest_price = df['price'].min()
-        highest_price = df['price'].max()
-        
         return {
-            "average_price": round(avg_price, 2),
-            "lowest_price": lowest_price,
-            "highest_price": highest_price
+            "average_price": round(df['price'].mean(), 2),
+            "lowest_price": df['price'].min(),
+            "highest_price": df['price'].max()
         }
     except Exception as e:
         return {"error": str(e)}
