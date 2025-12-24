@@ -1,83 +1,68 @@
-# 📊 Automated Market Intelligence Dashboard
+# 📚 Competitive Market Intelligence & Price Tracker
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://dashboardpy-nbatutpfheggacesfqpj43.streamlit.app/)
 ![Python](https://img.shields.io/badge/Python-3.9-blue)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-blue)
-![Status](https://img.shields.io/badge/Pipeline-Automated-green)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-336791)
+![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688)
+![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B)
+![Status](https://img.shields.io/badge/Pipeline-Automated-success)
 
-### 🚀 Live Demo
-**[Click here to view the Live Dashboard](https://dashboardpy-nbatutpfheggacesfqpj43.streamlit.app/)**
+> **A full-stack data engineering solution that automates competitor price monitoring, providing real-time analytics via a REST API and interactive dashboards.**
+
+---
+
+## 🚀 Live Demo (See it in Action)
+
+| Component | Role | Status | Link |
+| :--- | :--- | :--- | :--- |
+| **📊 Executive Dashboard** | **Frontend** | 🟢 Live | [**Click to View Dashboard**](https://dashboardpy-nbatutpfheggacesfqpj43.streamlit.app/) |
+| **🔌 Developer API** | **Backend** | 🟢 Live | [**Click to Test API (Swagger UI)**](https://market-intelligence-competitive-pricing.onrender.com/docs) |
+| **🤖 Data Pipeline** | **Automation** | 🟢 Active | *Runs daily via GitHub Actions* |
 
 ---
 
 ## 📖 Project Overview
-This project is a fully automated **End-to-End Data Pipeline** designed to track competitor pricing in real-time. It eliminates manual data gathering by automating the **Extraction, Transformation, and Loading (ETL)** process.
+**The Problem:** Manual price tracking is slow, error-prone, and lacks historical context.
+**The Solution:** An automated ETL pipeline that scrapes competitor data daily, stores it in a cloud warehouse, and serves actionable insights to stakeholders.
 
-The system scrapes market data daily, merges it with internal datasets, stores it in a cloud database, and visualizes actionable insights on a live dashboard.
-
-**Key Use Case:** Helping pricing managers spot market trends and adjust strategies without opening a spreadsheet.
-
----
-
-## 🏗️ Architecture & Workflow
-
-1.  **Extract:** A Python script scrapes live pricing data from competitor websites (Requests/BeautifulSoup) and generates mock internal sales data.
-2.  **Transform:** Data is cleaned, currency symbols are normalized, and datasets are merged using **Pandas**.
-3.  **Load:** Processed data is securely uploaded to a **PostgreSQL Cloud Database (Supabase)**.
-4.  **Automate:** **GitHub Actions** triggers this pipeline every morning at 8:00 AM UTC.
-5.  **Report:** A **Streamlit** web app fetches live data from the DB to display KPIs and charts.
-
----
-
-## ✨ Key Features (Reporting Focus)
-
-* **📈 Automated ETL Pipeline:** No human intervention required; runs on a daily schedule.
-* **☁️ Cloud Database Integration:** Persistent storage using PostgreSQL (Supabase) to track historical trends.
-* **📊 Interactive Dashboard:**
-    * **KPI Tracking:** Average Market Price, Product Count, Last Update Time.
-    * **Price Distribution:** Histograms using **Plotly** to analyze price spreads.
-* **📥 Export Functionality:** One-click **"Download as CSV"** feature for stakeholders to perform offline analysis in Excel.
-* **🌍 Timezone Intelligence:** Automatically converts server time (UTC) to local business time (IST) for accurate reporting.
+### 🔑 Key Features
+* **Automated ETL:** Daily extraction of pricing data using `BeautifulSoup` and `GitHub Actions`.
+* **Cloud Warehousing:** Persistent storage in **PostgreSQL (Supabase)** to track historical price trends.
+* **RESTful API:** A **FastAPI** microservice allowing external applications to fetch data securely (JSON).
+* **Business Intelligence:** A **Streamlit** dashboard visualizing KPIs like "Average Market Price" and "Price Drop Alerts."
 
 ---
 
 ## 🛠️ Tech Stack
+* **Language:** Python 3.10
+* **Extraction:** BeautifulSoup4, Requests
+* **Storage:** PostgreSQL (hosted on Supabase)
+* **Backend:** FastAPI, Uvicorn (hosted on Render)
+* **Visualization:** Streamlit Cloud, Pandas, Plotly
+* **DevOps:** GitHub Actions (CI/CD), Docker (Coming Soon)
 
-* **Language:** Python 3.9
-* **Data Manipulation:** Pandas, NumPy
-* **Web Scraping:** BeautifulSoup4, Requests
-* **Database:** PostgreSQL (Supabase), SQLAlchemy
-* **Visualization:** Streamlit, Plotly Express
-* **CI/CD & DevOps:** GitHub Actions (YAML)
+---
+
+## 🔄 Data Architecture
+1.  **Scraper (`main.py`)**: Wakes up at 8:00 AM, scrapes `books.toscrape.com`.
+2.  **Transformer**: Cleans currency symbols (£), handles missing values, and formats dates.
+3.  **Loader**: Pushes clean data to the **Supabase PostgreSQL** cloud database.
+4.  **API Layer (`api.py`)**: Connects to the DB and serves data via HTTP endpoints.
+5.  **Frontend (`dashboard.py`)**: Consumes data to display charts and tables.
 
 ---
 
 ## 💻 How to Run Locally
+Want to see the code running on your machine?
 
-If you want to run this dashboard on your own machine:
+```bash
+# 1. Clone the repository
+git clone [https://github.com/KarthikBM/Market_analyzer.git](https://github.com/KarthikBM/Market_analyzer.git)
 
-1.  **Clone the repository:**
-    ```bash
-    git clone [https://github.com/your-username/Market_analyzer.git](https://github.com/your-username/Market_analyzer.git)
-    cd Market_analyzer
-    ```
+# 2. Install dependencies
+pip install -r requirements.txt
 
-2.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+# 3. Run the API
+uvicorn api:app --reload
 
-3.  **Set up Database Credentials:**
-    * Create a file named `config.py`.
-    * Add your database URL: `DB_URL = "postgresql://user:pass@host:port/db"`
-
-4.  **Run the Dashboard:**
-    ```bash
-    streamlit run dashboard.py
-    ```
-
----
-
-## 📝 Author
-**Karthik BM**
-*Aspiring Reporting Specialist & Data Analyst*
+# 4. Run the Dashboard
+streamlit run dashboard.py
